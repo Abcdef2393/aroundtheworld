@@ -1,11 +1,12 @@
 const express = require("express");
+const countryCoder = require("@rapideditor/country-coder");
+
 const app = express();
 
 const FIRM_KEY = "5102335756ae3df6427369151dc649f3";
 
 app.get("/render", async (req, res) => {
     try {
-        // Get worldwide FIRMS fire data
         const url =
             `https://firms.modaps.eosdis.nasa.gov/api/area/csv/` +
             `${FIRM_KEY}/VIIRS_SNPP_NRT/world/1`;
@@ -17,9 +18,7 @@ app.get("/render", async (req, res) => {
             throw new Error(csv);
         }
 
-        // Split CSV into rows
         const lines = csv.trim().split("\n");
-
         const headers = lines[0].split(",");
 
         const fires = [];
@@ -36,71 +35,53 @@ app.get("/render", async (req, res) => {
             fires.push(fire);
         }
 
-        // Only keep major fires
-        const majorFires = fires.filter(fire => {
-            return Number(fire.frp) >= 50;
-        });
+        // Keep major fires
+        const majorFires = fires.filter(fire =>
+            Number(fire.frp) >= 50
+        );
 
-        // Country totals
+        // Country information
         const countries = {};
 
-        // Convert country code into flag emoji
-        function countryFlag(code) {
-            if (!code || code.length !== 2) {
-                return "🌎";
-            }
-
-            return String.fromCodePoint(
-                ...code
-                    .toUpperCase()
-                    .split("")
-                    .map(char => 127397 + char.charCodeAt(0))
-            );
-        }
-
-        // Find country for every major fire
         for (const fire of majorFires) {
-            const latitude = fire.latitude;
-            const longitude = fire.longitude;
+            const latitude = Number(fire.latitude);
+            const longitude = Number(fire.longitude);
 
-            const geoURL =
-                `https://api.bigdatacloud.net/data/reverse-geocode-client` +
-                `?latitude=${latitude}` +
-                `&longitude=${longitude}` +
-                `&localityLanguage=en`;
+            // country-coder expects [longitude, latitude]
+            const code = countryCoder.iso1A2Code([
+                longitude,
+                latitude
+            ]);
 
-            const geoResponse = await fetch(geoURL);
-
-            if (!geoResponse.ok) {
+            if (!code) {
                 continue;
             }
 
-            const geo = await geoResponse.json();
+            const feature = countryCoder.feature([
+                longitude,
+                latitude
+            ]);
 
-            const country = geo.countryName;
-            const code = geo.countryCode;
+            const country = feature?.properties?.nameEn || code;
+            const flag = feature?.properties?.emojiFlag || "🌎";
 
-            if (!country) {
-                continue;
-            }
-
-            if (!countries[country]) {
-                countries[country] = {
+            if (!countries[code]) {
+                countries[code] = {
                     country: country,
                     code: code,
-                    flag: countryFlag(code),
+                    flag: flag,
                     fires: 0
                 };
             }
 
-            countries[country].fires++;
+            countries[code].fires++;
         }
 
-        // Convert to array and sort biggest → smallest
+        // Sort largest → smallest
         const leaderboard = Object.values(countries)
             .sort((a, b) => b.fires - a.fires);
 
-        // Everything Roblox will eventually receive
+        // Final output
         const result = JSON.stringify(leaderboard);
 
         console.log("Sending:", result);
