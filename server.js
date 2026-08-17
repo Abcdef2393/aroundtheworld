@@ -29,7 +29,7 @@ app.get("/render", async (req, res) => {
 
         // Only keep major fires
         const majorFires = fires.filter(fire =>
-            Number(fire.frp) >= 100
+            Number(fire.frp) >= 0
         );
 
         // Put EVERYTHING into one result variable
