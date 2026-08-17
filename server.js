@@ -37,7 +37,7 @@ app.get("/render", async (req, res) => {
 
         // Keep major fires
         const majorFires = fires.filter(fire =>
-            Number(fire.frp) >= 50
+            Number(fire.frp) >= 100
         );
 
         // Country information
